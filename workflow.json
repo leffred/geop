@@ -1,0 +1,472 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -512,
+        0
+      ],
+      "id": "f8b4fe86-a4f4-4f7c-bc0d-54f14bd6503f",
+      "name": "When chat message received",
+      "webhookId": "e295aa8d-9fe1-4eac-96d4-01deab226670"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d9a640c7-e8a3-4fcf-ad02-067bf8826052",
+              "name": "keyword",
+              "value": "Meilleure banque pro pour auto-entrepreneur",
+              "type": "string"
+            },
+            {
+              "id": "1d825cb4-251c-452f-8ee5-cab10dc074aa",
+              "name": "brand",
+              "value": "Shine",
+              "type": "string"
+            },
+            {
+              "id": "eac2b4d6-77ea-4a51-9077-b31ff066c155",
+              "name": "user_email",
+              "value": "test@user.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -352,
+        0
+      ],
+      "id": "6b33e090-8652-4e63-a011-0f9f8a2c8a10",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "model": "perplexity/sonar",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        464,
+        208
+      ],
+      "id": "538f4c61-fcb4-4499-9ac5-710dce9c4d61",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "btUaIYxR1P6rXLfp",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Agis comme un moteur de recherche. Effectue une recherche web détaillée pour le mot-clé : {{ $('Edit Fields').item.json.keyword }}. Fournis une réponse complète, structurée et cite les marques et solutions mentionnées.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        464,
+        0
+      ],
+      "id": "633924e9-8011-477a-9eab-de9a4f9f173f",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tu es un analyste de données SEO extrêmement strict. Ta seule mission est d'analyser le texte brut fourni ci-dessous et d'extraire les données demandées au format JSON.\n\nMarque cible à rechercher : {{ $('Edit Fields').item.json.brand }}\nMot-clé de la recherche : {{ $('Edit Fields').item.json.keyword }}\n\n--- TEXTE BRUT À ANALYSER ---\n{{ $('Basic LLM Chain').item.json.text }}\n--- FIN DU TEXTE ---\n\nRéponds UNIQUEMENT avec un objet JSON (sans aucun texte explicatif avant ou après) contenant les clés suivantes :\n{\n  \"is_mentioned\": true/false,\n  \"sentiment\": \"Positif\" | \"Neutre\" | \"Négatif\" | \"Non cité\",\n  \"competitors_mentioned\": [\"Liste de TOUTES les autres marques bancaires citées dans le texte\"],\n  \"position_in_list\": \"Indique le classement (ex: '1ère', '2ème', 'Non classée') ou 'Non pertinent' si le texte n'est pas une liste.\"\n}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        816,
+        0
+      ],
+      "id": "34eee6a7-a63e-4e9e-862e-40783e92110f",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        816,
+        272
+      ],
+      "id": "6d3ce5d6-43ce-4ba7-8872-f40a2755f611",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "btUaIYxR1P6rXLfp",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT balance FROM credits WHERE user_email = '{{ $('Edit Fields').item.json.user_email }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -224,
+        0
+      ],
+      "id": "dc377ca3-7c3a-459f-90ce-1cc623b3bd80",
+      "name": "Verif Credits",
+      "credentials": {
+        "postgres": {
+          "id": "dcshkfUykInWV7D5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8d909dc9-8e0d-49ee-a013-632bbe8576c7",
+              "leftValue": "={{ $('Verif Credits').item.json.balance }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -16,
+        0
+      ],
+      "id": "57637505-a4c6-4d0f-9e73-536ae97612f6",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "reports",
+          "mode": "list",
+          "cachedResultName": "reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_email": "={{ $('Edit Fields').item.json.user_email }}",
+            "keyword": "={{ $('Edit Fields').item.json.keyword }}",
+            "brand": "={{ $('Edit Fields').item.json.brand }}",
+            "analysis_data": "={{ JSON.parse($('Basic LLM Chain1').item.json.text) }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "user_email",
+              "displayName": "user_email",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "keyword",
+              "displayName": "keyword",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "brand",
+              "displayName": "brand",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "analysis_data",
+              "displayName": "analysis_data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1168,
+        0
+      ],
+      "id": "fe7fd225-f0b3-41d8-94ac-9778a39b95e7",
+      "name": "Sauvegarder Rapport",
+      "credentials": {
+        "postgres": {
+          "id": "dcshkfUykInWV7D5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "credits",
+          "mode": "list",
+          "cachedResultName": "credits"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_email": "={{ $('Edit Fields').item.json.user_email }}",
+            "balance": "={{ $('Verif Credits').item.json.balance - 1 }}"
+          },
+          "matchingColumns": [
+            "user_email"
+          ],
+          "schema": [
+            {
+              "id": "user_email",
+              "displayName": "user_email",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "balance",
+              "displayName": "balance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1376,
+        0
+      ],
+      "id": "d90dcf5e-5c62-4619-bcdf-11c0f3377e35",
+      "name": "Decompter credit",
+      "credentials": {
+        "postgres": {
+          "id": "dcshkfUykInWV7D5",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Verif Credits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verif Credits": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Sauvegarder Rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sauvegarder Rapport": {
+      "main": [
+        [
+          {
+            "node": "Decompter credit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "timezone": "Europe/Paris",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "857818be-ae2e-460b-9f1b-47694154a07b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "05ac1a6959f92e132b4a641761252ca67c8793d4457a39edda914a2ab47a4f5a"
+  },
+  "id": "34NPKm9ee3HsoyCX",
+  "tags": []
+}
