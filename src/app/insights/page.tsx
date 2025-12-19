@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+// On garde l'importation centralisée
+import { supabase } from '@/lib/supabase'; 
 import { Award, PieChart, RefreshCw, BarChart3, Info } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// ❌ J'AI SUPPRIMÉ LE BLOC "const supabase = createClient(...)" QUI ÉTAIT ICI
+// Car il faisait doublon avec l'importation au-dessus.
 
 const getBrandColor = (name: string) => {
+  // ... (le reste de ta fonction getBrandColor reste inchangé)
   const presets: { [key: string]: string } = { "Shine": "#4F46E5", "Qonto": "#EC4899", "Revolut": "#06B6D4", "N26": "#10B981" };
   if (presets[name]) return presets[name];
   let hash = 0;

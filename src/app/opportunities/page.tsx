@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Lightbulb, Target, ArrowUpRight, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+// On garde l'importation centralisée
+import { supabase } from '@/lib/supabase'; 
+import { Award, PieChart, RefreshCw, BarChart3, Info } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// ❌ J'AI SUPPRIMÉ LE BLOC "const supabase = createClient(...)" QUI ÉTAIT ICI
+// Car il faisait doublon avec l'importation au-dessus.
 
 export default function OpportunitiesPage() {
   const [history, setHistory] = useState<any[]>([]);

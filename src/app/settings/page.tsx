@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { RefreshCw, Zap, Loader2, Plus, X as CloseIcon, MessageSquare, Sparkles, TrendingUp, Save, Trash2 } from 'lucide-react';
+// On garde l'importation centralisée
+import { supabase } from '@/lib/supabase'; 
+import { Award, PieChart, RefreshCw, BarChart3, Info } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// ❌ J'AI SUPPRIMÉ LE BLOC "const supabase = createClient(...)" QUI ÉTAIT ICI
+// Car il faisait doublon avec l'importation au-dessus.
+
 
 const getBrandColor = (name: string) => {
   const presets: { [key: string]: string } = { "Shine": "#4F46E5", "Qonto": "#EC4899", "Revolut": "#06B6D4" };
