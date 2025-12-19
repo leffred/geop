@@ -28,5 +28,9 @@ steps:
       - 'europe-west1'
       - '--allow-unauthenticated'
 
+# Option indispensable quand on utilise un compte de service personnalisé
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 images:
   - 'gcr.io/$PROJECT_ID/geop:$COMMIT_SHA'
