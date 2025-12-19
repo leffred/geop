@@ -1,14 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* Options de configuration fusionnées */
   reactCompiler: true,
-};
-
-export default nextConfig;
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  output: 'standalone', // <--- Cette ligne est CRUCIAL pour GCR
+  output: 'standalone', // <--- Crucial pour Google Cloud Run
 };
 
 export default nextConfig;
