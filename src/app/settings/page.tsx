@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { RefreshCw, Zap, Loader2, Plus, X as CloseIcon, MessageSquare, Sparkles, TrendingUp, Save, Trash2 } from 'lucide-react';
 
 const supabase = createClient(

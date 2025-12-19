@@ -6,3 +6,9 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'standalone', // <--- Cette ligne est CRUCIAL pour GCR
+};
+
+export default nextConfig;
