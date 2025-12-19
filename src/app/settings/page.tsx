@@ -1,13 +1,24 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-// On garde l'importation centralisée
+// On utilise uniquement l'importation centralisée
 import { supabase } from '@/lib/supabase'; 
-import { Award, PieChart, RefreshCw, BarChart3, Info } from 'lucide-react';
-
-// ❌ J'AI SUPPRIMÉ LE BLOC "const supabase = createClient(...)" QUI ÉTAIT ICI
-// Car il faisait doublon avec l'importation au-dessus.
-
+import { 
+  Award, 
+  PieChart, 
+  RefreshCw, 
+  BarChart3, 
+  Info, 
+  Save, 
+  Loader2, 
+  Plus, 
+  X as CloseIcon, 
+  MessageSquare, 
+  Sparkles, 
+  TrendingUp, 
+  Trash2, 
+  Zap 
+} from 'lucide-react';
 
 const getBrandColor = (name: string) => {
   const presets: { [key: string]: string } = { "Shine": "#4F46E5", "Qonto": "#EC4899", "Revolut": "#06B6D4" };
@@ -35,13 +46,13 @@ export default function SettingsPage() {
   // --- CHARGEMENT DES RÉGLAGES DEPUIS LA DB ---
   useEffect(() => {
     const loadSettings = async () => {
+      // Utilisation du client Supabase centralisé pour Cloud Run
       const { data } = await supabase.from('settings').select('*').eq('id', 1).single();
       if (data) {
         setBrand(data.brand);
         setKeywords(data.keywords || []);
         setCompetitors(data.competitors || []);
       }
-      // On charge aussi l'historique pour le nuage de concurrents
       const { data: hist } = await supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(10);
       if (hist) setHistory(hist);
     };
@@ -91,10 +102,11 @@ export default function SettingsPage() {
 
   const handleRunMassAnalysis = async () => {
     setLoading(true);
-    await saveSettings(); // On sauve avant de lancer
+    await saveSettings();
     for (let i = 0; i < keywords.length; i++) {
       setProgress(Math.round(((i + 1) / keywords.length) * 100));
       try {
+        // Lien vers ton webhook n8n
         await fetch("https://fredericlefebvre.app.n8n.cloud/webhook/48a1ec77-0327-4ec5-b934-aaa03cb0f6f6", {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -126,9 +138,13 @@ export default function SettingsPage() {
       {loading && (
         <div className="mb-6 bg-slate-900 rounded-2xl p-6 text-white shadow-xl">
           <div className="flex justify-between items-end mb-4">
-            <h3 className="text-sm font-black flex items-center gap-2 italic uppercase"><Loader2 className="animate-spin text-indigo-400" size={16}/> Bulk Scan: {progress}%</h3>
+            <h3 className="text-sm font-black flex items-center gap-2 italic uppercase">
+              <Loader2 className="animate-spin text-indigo-400" size={16}/> Bulk Scan: {progress}%
+            </h3>
           </div>
-          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${progress}%` }}></div></div>
+          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+          </div>
         </div>
       )}
 
@@ -183,7 +199,9 @@ export default function SettingsPage() {
             {keywords.map((kw, idx) => (
               <div key={idx} className="flex items-center justify-between bg-slate-50/30 p-4 rounded-xl border border-slate-100 group">
                 <span className="text-xs font-bold text-slate-600 italic">"{kw}"</span>
-                <button onClick={() => setKeywords(keywords.filter((_, i) => i !== idx))} className="p-2 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all"><Trash2 size={16} /></button>
+                <button onClick={() => setKeywords(keywords.filter((_, i) => i !== idx))} className="p-2 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                  <Trash2 size={16} />
+                </button>
               </div>
             ))}
           </div>
