@@ -1,0 +1,32 @@
+steps:
+  # 1. Build de l'image Docker avec les arguments explicitement passés
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_SUPABASE_URL=$_NEXT_PUBLIC_SUPABASE_URL'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_SUPABASE_ANON_KEY=$_NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/geop:$COMMIT_SHA'
+      - '.'
+
+  # 2. Push de l'image vers l'Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/geop:$COMMIT_SHA']
+
+  # 3. Déploiement automatique sur Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'geop'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/geop:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west1'
+      - '--allow-unauthenticated'
+
+images:
+  - 'gcr.io/$PROJECT_ID/geop:$COMMIT_SHA'
