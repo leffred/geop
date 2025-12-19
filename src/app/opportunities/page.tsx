@@ -1,12 +1,20 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-// On garde l'importation centralisée
 import { supabase } from '@/lib/supabase'; 
-import { Award, PieChart, RefreshCw, BarChart3, Info } from 'lucide-react';
-
-// ❌ J'AI SUPPRIMÉ LE BLOC "const supabase = createClient(...)" QUI ÉTAIT ICI
-// Car il faisait doublon avec l'importation au-dessus.
+// Ajout de AlertCircle et fusion des imports lucide-react
+import { 
+  Lightbulb, 
+  Target, 
+  ArrowUpRight, 
+  RefreshCw, 
+  Sparkles, 
+  Award, 
+  PieChart, 
+  BarChart3, 
+  Info, 
+  AlertCircle 
+} from 'lucide-react';
 
 export default function OpportunitiesPage() {
   const [history, setHistory] = useState<any[]>([]);
@@ -15,6 +23,7 @@ export default function OpportunitiesPage() {
 
   const fetchData = async () => {
     setLoading(true);
+    // Récupération des données via le client centralisé
     const { data } = await supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(20);
     if (data) setHistory(data);
     setLoading(false);
@@ -42,7 +51,7 @@ export default function OpportunitiesPage() {
     });
 
     return Object.values(opps)
-      .filter(o => !o.ourPresence) // On ne garde que là où on est absent
+      .filter(o => !o.ourPresence) // On ne garde que là où la marque est absente
       .sort((a, b) => b.competitionStrength - a.competitionStrength);
   };
 
@@ -63,7 +72,9 @@ export default function OpportunitiesPage() {
       <div className="grid grid-cols-1 gap-6">
         {/* TOP ALERT BOX */}
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6 flex items-start gap-4">
-          <div className="bg-amber-100 p-2 rounded-lg text-amber-600"><AlertCircle size={20}/></div>
+          <div className="bg-amber-100 p-2 rounded-lg text-amber-600">
+            <AlertCircle size={20}/>
+          </div>
           <div>
             <h3 className="text-sm font-black text-amber-800 uppercase tracking-tight mb-1 italic text-left">Critical Insight</h3>
             <p className="text-xs text-amber-700 leading-relaxed text-left font-medium">
