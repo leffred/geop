@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-// On garde l'importation centralisée
-import { supabase } from '@/lib/supabase'; 
-import { Award, PieChart, RefreshCw, BarChart3, Info } from 'lucide-react';
-
-// ❌ J'AI SUPPRIMÉ LE BLOC "const supabase = createClient(...)" QUI ÉTAIT ICI
-// Car il faisait doublon avec l'importation au-dessus.
-
+import { supabase } from '@/lib/supabase'; // Import unique
+import { 
+  Link2, 
+  ExternalLink, 
+  RefreshCw, 
+  Globe, // <-- Ajout de Globe ici
+  MessageSquare, 
+  ArrowUpRight 
+} from 'lucide-react';
 
 const getBrandColor = (name: string) => {
   const presets: { [key: string]: string } = { "gpt": "#10a37f", "claude": "#d97757", "gemini": "#4285f4", "perplexity": "#20b2aa" };
