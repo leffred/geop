@@ -1,27 +1,31 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-// On utilise uniquement l'importation centralisée
 import { supabase } from '@/lib/supabase'; 
 import { 
-  Award, 
-  PieChart, 
-  RefreshCw, 
-  BarChart3, 
-  Info, 
   Save, 
   Loader2, 
   Plus, 
   X as CloseIcon, 
   MessageSquare, 
   Sparkles, 
-  TrendingUp, 
   Trash2, 
-  Zap 
+  Zap,
+  Globe,
+  Monitor,
+  Languages,
+  MapPin,
+  RefreshCw
 } from 'lucide-react';
 
 const getBrandColor = (name: string) => {
-  const presets: { [key: string]: string } = { "Shine": "#4F46E5", "Qonto": "#EC4899", "Revolut": "#06B6D4" };
+  if (!name || typeof name !== 'string') return "#94a3b8";
+  const presets: { [key: string]: string } = { 
+    "Shine": "#4F46E5", 
+    "Qonto": "#EC4899", 
+    "Revolut": "#06B6D4",
+    "N26": "#10B981"
+  };
   if (presets[name]) return presets[name];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -35,23 +39,32 @@ export default function SettingsPage() {
   const [progress, setProgress] = useState(0);
   const [history, setHistory] = useState<any[]>([]);
   
-  // États synchronisés avec la DB
+  // États synchronisés avec la base de données
   const [brand, setBrand] = useState("");
   const [keywords, setKeywords] = useState<string[]>([]);
   const [competitors, setCompetitors] = useState<string[]>([]);
   
+  // Nouveaux paramètres GEO pour l'IA
+  const [country, setCountry] = useState("France");
+  const [language, setLanguage] = useState("French");
+  const [device, setDevice] = useState("Desktop");
+  const [city, setCity] = useState("");
+
   const [newKeyword, setNewKeyword] = useState("");
   const [newComp, setNewComp] = useState("");
 
-  // --- CHARGEMENT DES RÉGLAGES DEPUIS LA DB ---
+  // --- CHARGEMENT DES RÉGLAGES ---
   useEffect(() => {
     const loadSettings = async () => {
-      // Utilisation du client Supabase centralisé pour Cloud Run
       const { data } = await supabase.from('settings').select('*').eq('id', 1).single();
       if (data) {
-        setBrand(data.brand);
+        setBrand(data.brand || "");
         setKeywords(data.keywords || []);
         setCompetitors(data.competitors || []);
+        setCountry(data.country || "France");
+        setLanguage(data.language || "French");
+        setDevice(data.device || "Desktop");
+        setCity(data.city || "");
       }
       const { data: hist } = await supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(10);
       if (hist) setHistory(hist);
@@ -59,20 +72,25 @@ export default function SettingsPage() {
     loadSettings();
   }, []);
 
-  // --- SAUVEGARDE DANS LA DB ---
+  // --- SAUVEGARDE DANS LA BASE DE DONNÉES ---
   const saveSettings = async () => {
     setIsSaving(true);
     const { error } = await supabase.from('settings').update({
       brand,
       keywords,
       competitors,
+      country,
+      language,
+      device,
+      city,
       updated_at: new Date()
     }).eq('id', 1);
     
-    if (error) alert("Erreur de sauvegarde");
+    if (error) alert("Erreur lors de la sauvegarde des paramètres");
     setIsSaving(false);
   };
 
+  // --- SUGGESTION DE PROMPTS PAR IA ---
   const suggestPrompts = async () => {
     if (keywords.length >= 50) return;
     setIsSuggesting(true);
@@ -86,40 +104,54 @@ export default function SettingsPage() {
     }, 400);
   };
 
+  // --- DÉTECTION AUTOMATIQUE DE CONCURRENTS ---
   const detectedCompetitors = (() => {
     const found: string[] = [];
     history.forEach(scan => {
       ['gpt', 'claude', 'gemini', 'perplexity'].forEach(m => {
         const comps = scan.analysis_data?.[m]?.competitors || [];
-        comps.forEach((c: string) => {
+        comps.forEach((c: any) => {
+          if (typeof c !== 'string') return;
           const name = c.trim();
-          if (!competitors.includes(name) && name.toLowerCase() !== brand.toLowerCase() && !found.includes(name)) found.push(name);
+          if (!competitors.includes(name) && name.toLowerCase() !== brand.toLowerCase() && !found.includes(name)) {
+            found.push(name);
+          }
         });
       });
     });
     return found;
   })();
 
+  // --- LANCEMENT DU SCAN MASSIF (WEBHOOK n8n) ---
   const handleRunMassAnalysis = async () => {
     setLoading(true);
     await saveSettings();
     for (let i = 0; i < keywords.length; i++) {
       setProgress(Math.round(((i + 1) / keywords.length) * 100));
       try {
-        // Lien vers ton webhook n8n
+        // Envoi des 7 paramètres au webhook n8n
         await fetch("https://fredericlefebvre.app.n8n.cloud/webhook/48a1ec77-0327-4ec5-b934-aaa03cb0f6f6", {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brand, keyword: keywords[i], competitors }),
+          body: JSON.stringify({ 
+            brand, 
+            keyword: keywords[i], 
+            competitors,
+            country,
+            language,
+            device,
+            city 
+          }),
         });
         await new Promise(r => setTimeout(r, 2500)); 
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error("Erreur Webhook:", e); }
     }
-    setLoading(false); setProgress(0);
+    setLoading(false); 
+    setProgress(0);
   };
 
   return (
-    <div className="animate-in fade-in duration-500 max-w-5xl mx-auto text-left">
+    <div className="animate-in fade-in duration-500 max-w-5xl mx-auto text-left pb-20">
       <header className="mb-8 flex justify-between items-end">
         <div>
           <h1 className="text-xl font-black text-slate-900 italic tracking-tight uppercase">Campaign Cockpit</h1>
@@ -128,38 +160,67 @@ export default function SettingsPage() {
         <button 
           onClick={saveSettings} 
           disabled={isSaving}
-          className="bg-emerald-500 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-emerald-100 flex items-center gap-2 hover:bg-emerald-600 transition-all"
+          className="bg-emerald-500 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-emerald-100 flex items-center gap-2 hover:bg-emerald-600 transition-all active:scale-95"
         >
           {isSaving ? <Loader2 className="animate-spin" size={14}/> : <Save size={14} />}
           {isSaving ? "Saving..." : "Save Config"}
         </button>
       </header>
 
+      {/* Barre de progression des scans */}
       {loading && (
         <div className="mb-6 bg-slate-900 rounded-2xl p-6 text-white shadow-xl">
           <div className="flex justify-between items-end mb-4">
             <h3 className="text-sm font-black flex items-center gap-2 italic uppercase">
-              <Loader2 className="animate-spin text-indigo-400" size={16}/> Bulk Scan: {progress}%
+              <RefreshCw className="animate-spin text-indigo-400" size={16}/> Bulk Analysis: {progress}%
             </h3>
           </div>
           <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-            <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+            <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
           </div>
         </div>
       )}
 
       <div className="space-y-6">
+        {/* Section Marque & GEO */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-4">My Brand</label>
-            <input value={brand} onChange={(e) => setBrand(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" />
+          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-2">My Brand</label>
+              <input value={brand} onChange={(e) => setBrand(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-indigo-300 transition-colors" />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-2 flex items-center gap-1"><Globe size={10}/> Country</label>
+                <input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-2 flex items-center gap-1"><MapPin size={10}/> City (Opt)</label>
+                <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Paris" className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold outline-none" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-2 flex items-center gap-1"><Languages size={10}/> Language</label>
+                <input value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-2 flex items-center gap-1"><Monitor size={10}/> Device</label>
+                <select value={device} onChange={(e) => setDevice(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold outline-none cursor-pointer">
+                  <option value="Desktop">Desktop</option>
+                  <option value="Mobile">Mobile</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-4">Active Competitors</label>
-            <div className="flex flex-wrap gap-2 mb-4">
+          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col">
+            <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-4">Competitors to track</label>
+            <div className="flex flex-wrap gap-2 mb-4 flex-grow content-start">
               {competitors.map(c => (
-                <span key={c} className="px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-2 shadow-sm border border-slate-50" style={{ backgroundColor: 'white', color: getBrandColor(c) }}>
+                <span key={c} className="px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-2 shadow-sm border border-slate-50 bg-white" style={{ color: getBrandColor(c) }}>
                   {c} <CloseIcon size={12} className="cursor-pointer text-slate-300 hover:text-rose-500" onClick={() => setCompetitors(competitors.filter(x => x !== c))} />
                 </span>
               ))}
@@ -171,6 +232,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Suggestion de concurrents détectés par l'IA */}
         {detectedCompetitors.length > 0 && (
           <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm animate-in fade-in duration-700">
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">AI Discovery Cloud</h3>
@@ -184,9 +246,10 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* Bibliothèque de Prompts */}
         <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-left">
               <MessageSquare className="text-indigo-600" size={16} />
               <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Campaign Prompts ({keywords.length}/50)</h3>
             </div>
@@ -195,7 +258,7 @@ export default function SettingsPage() {
             </button>
           </div>
           
-          <div className="space-y-2 mb-6 max-h-[400px] overflow-y-auto pr-2 border-y border-slate-50 py-4">
+          <div className="space-y-2 mb-6 max-h-[400px] overflow-y-auto pr-2 border-y border-slate-50 py-4 custom-scrollbar">
             {keywords.map((kw, idx) => (
               <div key={idx} className="flex items-center justify-between bg-slate-50/30 p-4 rounded-xl border border-slate-100 group">
                 <span className="text-xs font-bold text-slate-600 italic">"{kw}"</span>
@@ -212,9 +275,14 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <button onClick={handleRunMassAnalysis} disabled={loading || keywords.length === 0} className={`w-full py-6 rounded-2xl font-black text-sm flex items-center justify-center gap-4 transition-all ${loading ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white shadow-2xl hover:bg-black active:scale-[0.98]'}`}>
+        {/* Bouton d'action principal */}
+        <button 
+          onClick={handleRunMassAnalysis} 
+          disabled={loading || keywords.length === 0} 
+          className={`w-full py-6 rounded-2xl font-black text-sm flex items-center justify-center gap-4 transition-all ${loading ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white shadow-2xl hover:bg-black active:scale-[0.98]'}`}
+        >
           {loading ? <RefreshCw className="animate-spin" size={20}/> : <Zap size={20} className="fill-white"/>}
-          LAUNCH GLOBAL CAMPAIGN
+          LAUNCH GLOBAL GEO SCAN
         </button>
       </div>
     </div>
