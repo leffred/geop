@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { 
   LayoutGrid, 
   TrendingUp, 
   Share2, 
   Settings as SettingsIcon, 
-  Lightbulb // Import de l'icône pour Opportunities
+  Lightbulb,
+  Link as LinkIcon
 } from 'lucide-react';
 import "./globals.css";
 
@@ -33,7 +33,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr">
       <body className="antialiased bg-[#F3F5F9]">
         <div className="min-h-screen flex">
-          {/* SIDEBAR FIXE */}
           <aside className="w-64 bg-white border-r border-slate-200 p-6 hidden lg:flex flex-col fixed h-full z-20 text-left">
             <div className="flex items-center gap-3 mb-10">
               <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black italic shadow-lg shadow-indigo-100 text-xl">G</div>
@@ -44,11 +43,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NavItem icon={<LayoutGrid size={18}/>} label="Overview" path="/" />
               <NavItem icon={<TrendingUp size={18}/>} label="Market Insights" path="/insights" />
               <NavItem icon={<Share2 size={18}/>} label="Sources Flow" path="/sources" />
-              
-              {/* NOUVELLE LIGNE AJOUTÉE ICI */}
               <NavItem icon={<Lightbulb size={18}/>} label="Opportunities" path="/opportunities" />
               
               <div className="pt-10 pb-4 text-[10px] font-black text-slate-300 uppercase tracking-widest px-4 text-left">Admin</div>
+              <NavItem icon={<LinkIcon size={18}/>} label="Integrations" path="/integrations" />
               <NavItem icon={<SettingsIcon size={18}/>} label="Settings" path="/settings" />
             </nav>
 
@@ -61,7 +59,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </aside>
 
-          {/* CONTENU DE LA PAGE */}
           <main className="flex-1 lg:ml-64 p-8 overflow-x-hidden relative min-h-screen">
             {children}
           </main>
