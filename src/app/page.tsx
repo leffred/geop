@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-// On garde l'importation centralisée
 import { supabase } from '@/lib/supabase'; 
-import { Award, PieChart, RefreshCw, BarChart3, Info } from 'lucide-react';
-
-// ❌ J'AI SUPPRIMÉ LE BLOC "const supabase = createClient(...)" QUI ÉTAIT ICI
-// Car il faisait doublon avec l'importation au-dessus.
-
+import { RefreshCw } from 'lucide-react';
 
 const getBrandColor = (name: string) => {
-  const presets: { [key: string]: string } = { "Shine": "#4F46E5", "Qonto": "#EC4899", "Revolut": "#06B6D4" };
+  const presets: { [key: string]: string } = { 
+    "Shine": "#4F46E5", 
+    "Qonto": "#EC4899", 
+    "Revolut": "#06B6D4",
+    "N26": "#10B981"
+  };
   if (presets[name]) return presets[name];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -27,10 +27,10 @@ export default function OverviewPage() {
 
   const fetchAllData = async () => {
     setLoading(true);
-    // 1. Charger les réglages
+    // 1. Charger les réglages (Marque principale et concurrents)
     const { data: settings } = await supabase.from('settings').select('*').eq('id', 1).single();
     if (settings) {
-      setBrand(settings.brand);
+      setBrand(settings.brand || "Marque inconnue");
       setCompetitors(settings.competitors || []);
     }
 
@@ -42,41 +42,65 @@ export default function OverviewPage() {
 
   useEffect(() => { fetchAllData(); }, []);
 
+  // Fonction de calcul de score sécurisée contre les valeurs nulles/undefined
   const getBrandScore = (brandName: string, data: any) => {
-    if (!data) return 0;
+    if (!data || !brandName || typeof brandName !== 'string') return 0;
+    
     let total = 0;
     const models = ['gpt', 'claude', 'gemini', 'perplexity'];
+    
     models.forEach(m => {
       const modelData = data[m] || {};
-      if (brandName.toLowerCase() === brand.toLowerCase()) {
-        total += (modelData.visibility_score > 1 ? modelData.visibility_score : modelData.visibility_score * 100) || 0;
+      const mainBrand = brand || "";
+
+      // Comparaison sécurisée pour la marque principale
+      if (typeof mainBrand === 'string' && brandName.toLowerCase() === mainBrand.toLowerCase()) {
+        const score = modelData.visibility_score || 0;
+        total += (score > 1 ? score : score * 100);
       } else {
-        const isPresent = modelData.competitors?.some((c: string) => c.toLowerCase() === brandName.toLowerCase());
+        // Comparaison sécurisée pour les concurrents
+        const isPresent = modelData.competitors?.some((c: any) => 
+          typeof c === 'string' && c.toLowerCase() === brandName.toLowerCase()
+        );
         total += isPresent ? 75 : 0; 
       }
     });
     return Math.round(total / 4);
   };
 
+  // Liste des marques triées par score (avec filtrage des valeurs invalides)
   const rankedBrands = [brand, ...competitors]
-    .map(name => ({ name, score: getBrandScore(name, history[history.length - 1]?.analysis_data) }))
+    .filter(name => name && typeof name === 'string' && name !== "Loading...")
+    .map(name => ({ 
+      name, 
+      score: getBrandScore(name, history[history.length - 1]?.analysis_data) 
+    }))
     .sort((a, b) => b.score - a.score);
 
   const renderSmoothCurve = (brandName: string) => {
-    if (history.length < 2) return null;
+    if (history.length < 2 || !brandName) return null;
     const width = 1000; const height = 200;
     const points = history.map((h, i) => ({
       x: (i / (history.length - 1)) * width,
       y: height - (getBrandScore(brandName, h.analysis_data) / 100) * height
     }));
+    
     let pathData = `M ${points[0].x},${points[0].y}`;
     for (let i = 0; i < points.length - 1; i++) {
       const cpX = (points[i].x + points[i + 1].x) / 2;
       pathData += ` C ${cpX},${points[i].y} ${cpX},${points[i+1].y} ${points[i+1].x},${points[i+1].y}`;
     }
+    
     return (
       <g key={brandName}>
-        <path d={pathData} fill="none" stroke={getBrandColor(brandName)} strokeWidth={brandName === brand ? "4" : "2"} style={{ opacity: brandName === brand ? 1 : 0.4 }} className="transition-all duration-1000" />
+        <path 
+          d={pathData} 
+          fill="none" 
+          stroke={getBrandColor(brandName)} 
+          strokeWidth={brandName === brand ? "4" : "2"} 
+          style={{ opacity: brandName === brand ? 1 : 0.4 }} 
+          className="transition-all duration-1000" 
+        />
       </g>
     );
   };
@@ -105,14 +129,17 @@ export default function OverviewPage() {
                   <span className="text-sm font-black text-slate-900">{item.score}%</span>
                 </div>
                 <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${item.score}%`, backgroundColor: getBrandColor(item.name) }}></div>
+                  <div 
+                    className="h-full rounded-full transition-all duration-1000" 
+                    style={{ width: `${item.score}%`, backgroundColor: getBrandColor(item.name) }}
+                  ></div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* EVOLUTION FLOW MAGNIFIÉ */}
+        {/* EVOLUTION FLOW */}
         <div className="lg:col-span-8 bg-white rounded-[32px] p-8 border border-slate-100 shadow-sm flex flex-col h-[520px] text-left">
           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8 italic">Visibility Score Evolution</h3>
           
@@ -126,7 +153,7 @@ export default function OverviewPage() {
                 {[0, 25, 50, 75, 100].map(v => (
                   <line key={v} x1="0" y1={200 - (v * 2)} x2="1000" y2={200 - (v * 2)} stroke="#F8FAFC" strokeWidth="1" />
                 ))}
-                {competitors.map(c => renderSmoothCurve(c))}
+                {competitors.filter(c => typeof c === 'string').map(c => renderSmoothCurve(c))}
                 {renderSmoothCurve(brand)}
               </svg>
               
@@ -139,7 +166,7 @@ export default function OverviewPage() {
           </div>
 
           <div className="mt-12 flex flex-wrap gap-6 pt-6 border-t border-slate-50">
-            {[brand, ...competitors].map(name => (
+            {[brand, ...competitors].filter(n => typeof n === 'string').map(name => (
               <div key={name} className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full" style={{ backgroundColor: getBrandColor(name) }}></div>
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{name}</span>
