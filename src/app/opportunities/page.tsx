@@ -7,35 +7,64 @@ import {
   ArrowUpRight, 
   RefreshCw, 
   Sparkles, 
-  AlertCircle,
   Users,
   ShieldAlert
 } from 'lucide-react';
 
+// Interface pour typer les données (Optionnel mais propre)
+interface ScanResult {
+  id: string;
+  created_at: string;
+  raw_response: string; // C'est une string JSON dans la DB
+  prompt?: {
+    text: string;
+  };
+}
+
 export default function OpportunitiesPage() {
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<ScanResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [brand, setBrand] = useState("Loading...");
 
   const fetchData = async () => {
     setLoading(true);
     
-    // 1. Récupération de la marque configurée
-    const { data: settings } = await supabase.from('settings').select('brand').eq('id', 1).single();
-    if (settings?.brand) {
-      setBrand(settings.brand);
+    // 1. Récupération de la marque (depuis le premier projet trouvé)
+    // On suppose que tu as au moins un projet. Sinon on met une valeur par défaut.
+    const { data: project } = await supabase.from('projects').select('name').limit(1).single();
+    if (project?.name) {
+      setBrand(project.name);
+    } else {
+      setBrand("Ma Marque");
     }
 
-    // 2. Récupération des rapports (on monte à 50 pour une analyse plus fine)
-    const { data } = await supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(50);
-    if (data) setHistory(data);
+    // 2. Récupération des résultats V2
+    // On joint la table 'prompts' pour récupérer le texte du mot-clé
+    const { data, error } = await supabase
+      .from('monitoring_results')
+      .select(`
+        *,
+        prompt:prompts (
+          text
+        )
+      `)
+      .order('run_date', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error("Erreur de chargement:", error);
+    }
+
+    if (data) {
+      setHistory(data as any);
+    }
     
     setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, []);
 
-  // --- LOGIQUE DE DÉTECTION D'OPPORTUNITÉS (LOGIQUE DE CONSENSUS) ---
+  // --- LOGIQUE DE DÉTECTION D'OPPORTUNITÉS (V2) ---
   const calculateOpportunities = () => {
     const opps: { [key: string]: { 
       keyword: string, 
@@ -44,56 +73,70 @@ export default function OpportunitiesPage() {
       dominatingCompetitors: string[] 
     } } = {};
     
-    if (history.length === 0 || brand === "Loading...") return [];
+    if (history.length === 0) return [];
 
     history.forEach(scan => {
-      const keyword = scan.keyword || "Requête sans nom";
+      // Récupération sécurisée du mot-clé
+      // @ts-ignore
+      const keyword = scan.prompt?.text || "Requête inconnue";
+      
       let mentionCount = 0;
       const competitorsSet = new Set<string>();
 
-      ['gpt', 'claude', 'gemini', 'perplexity'].forEach(m => {
-        const modelData = scan.analysis_data?.[m] || {};
+      // Parsing de la réponse brute (stockée en string JSON par n8n)
+      let analysisData: any = {};
+      try {
+        if (scan.raw_response) {
+          // Double parse parfois nécessaire si n8n a stringifié deux fois, sinon un seul suffit
+          analysisData = typeof scan.raw_response === 'string' ? JSON.parse(scan.raw_response) : scan.raw_response;
+        }
+      } catch (e) {
+        console.error("Erreur JSON Parse pour", keyword, e);
+      }
+
+      // Analyse des modèles utilisés dans le workflow V2
+      const models = ['gpt', 'perplexity'];
+
+      models.forEach(m => {
+        const modelData = analysisData[m] || {};
         
-        // On compte combien de modèles citent la marque
+        // 1. On compte si la marque est citée
         if (modelData.is_mentioned === true) {
           mentionCount++;
         }
         
-        // Collecte des concurrents qui prennent la place
+        // 2. Collecte des concurrents cités
+        // Le prompt n8n renvoie "competitors_cited"
+        if (modelData.competitors_cited && Array.isArray(modelData.competitors_cited)) {
+          modelData.competitors_cited.forEach((c: string) => competitorsSet.add(c));
+        }
+        // Fallback ancienne structure (au cas où)
         if (modelData.competitors && Array.isArray(modelData.competitors)) {
-          modelData.competitors.forEach((c: any) => {
-            if (typeof c === 'string' && c.trim() !== "") {
-              competitorsSet.add(c.trim());
-            }
-          });
+          modelData.competitors.forEach((c: string) => competitorsSet.add(c));
         }
       });
 
+      // Logique d'agrégation (on écrase si doublon pour garder le plus récent car history est trié par date)
       if (!opps[keyword]) {
         opps[keyword] = { 
           keyword, 
           competitionStrength: competitorsSet.size, 
           mentionCount: mentionCount,
-          dominatingCompetitors: Array.from(competitorsSet).slice(0, 5)
+          dominatingCompetitors: Array.from(competitorsSet).slice(0, 5) // Top 5
         };
-      } else {
-        // On garde le score de mention le plus récent ou le plus bas
-        opps[keyword].mentionCount = Math.min(opps[keyword].mentionCount, mentionCount);
       }
     });
 
-    // CRITÈRE DE GAP : 
-    // Un mot-clé est une opportunité si moins de 50% des modèles (2/4) citent la marque
-    // ET qu'il y a au moins un concurrent cité (donc de la place pour du GEO).
+    // RETOUR DES RÉSULTATS
     return Object.values(opps)
-      .filter(o => o.mentionCount < 2 && o.competitionStrength > 0)
+      // .filter(o => o.mentionCount < 2) // <--- J'AI COMMENTÉ LE FILTRE pour que tu voies tout !
       .sort((a, b) => b.competitionStrength - a.competitionStrength);
   };
 
   const opportunities = calculateOpportunities();
 
   return (
-    <div className="animate-in fade-in duration-500 text-left">
+    <div className="animate-in fade-in duration-500 text-left pb-20">
       <header className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-xl font-black text-slate-900 italic tracking-tight uppercase">Opportunity Gap</h1>
@@ -105,19 +148,20 @@ export default function OpportunitiesPage() {
       </header>
 
       <div className="grid grid-cols-1 gap-6">
-        {/* ALERT BOX DYNAMIQUE */}
+        
+        {/* ALERT BOX */}
         <div className={`rounded-2xl p-6 flex items-start gap-4 border ${opportunities.length > 0 ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100'}`}>
           <div className={`p-2 rounded-lg ${opportunities.length > 0 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
             {opportunities.length > 0 ? <ShieldAlert size={20}/> : <Sparkles size={20}/>}
           </div>
           <div>
             <h3 className={`text-sm font-black uppercase tracking-tight mb-1 italic ${opportunities.length > 0 ? 'text-rose-800' : 'text-emerald-800'}`}>
-              {opportunities.length > 0 ? 'Gaps de visibilité détectés' : 'Visibilité Optimale'}
+              {opportunities.length > 0 ? 'Analyse Terminée' : 'Visibilité Optimale'}
             </h3>
             <p className={`text-xs leading-relaxed font-medium ${opportunities.length > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
               {opportunities.length > 0 
-                ? `Nous avons identifié ${opportunities.length} mots-clés stratégiques où ${brand} est sous-représenté par rapport à la concurrence.`
-                : `Bravo ! ${brand} est bien positionné sur l'ensemble de vos mots-clés suivis.`}
+                ? `Voici les résultats de l'analyse IA pour ${brand}.`
+                : `Bravo ! ${brand} est bien positionné partout.`}
             </p>
           </div>
         </div>
@@ -127,7 +171,7 @@ export default function OpportunitiesPage() {
             <div className="p-6 border-b border-slate-50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Target className="text-indigo-600" size={16} />
-                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recommended Actions</h3>
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gaps Prioritaires</h3>
                 </div>
             </div>
             
@@ -143,23 +187,25 @@ export default function OpportunitiesPage() {
                                 
                                 <div className="flex flex-wrap items-center gap-3">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded">
-                                        Concurrence : {opp.competitionStrength} cités
+                                        Concurrents : {opp.competitionStrength}
                                     </span>
-                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${opp.mentionCount === 0 ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
-                                        Visibilité IA : {opp.mentionCount}/4 modèles
+                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${opp.mentionCount < 2 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                        Visibilité IA : {opp.mentionCount} / 2
                                     </span>
                                 </div>
 
-                                <div className="mt-3 flex items-center gap-2">
-                                  <Users size={10} className="text-slate-300"/>
-                                  <div className="flex flex-wrap gap-1">
-                                    {opp.dominatingCompetitors.map(comp => (
-                                      <span key={comp} className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                                        {comp}
-                                      </span>
-                                    ))}
+                                {opp.dominatingCompetitors.length > 0 && (
+                                  <div className="mt-3 flex items-center gap-2">
+                                    <Users size={10} className="text-slate-300"/>
+                                    <div className="flex flex-wrap gap-1">
+                                      {opp.dominatingCompetitors.map(comp => (
+                                        <span key={comp} className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                          {comp}
+                                        </span>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
+                                )}
                             </div>
                         </div>
                         <button className="flex items-center justify-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest md:opacity-0 group-hover:opacity-100 transition-all bg-indigo-50 md:bg-transparent py-2 px-4 md:py-0 rounded-lg">
@@ -170,7 +216,9 @@ export default function OpportunitiesPage() {
 
                 {opportunities.length === 0 && !loading && (
                     <div className="p-20 text-center">
-                        <p className="text-xs text-slate-400 italic">Aucun gap critique détecté. Votre domination est totale ou les données sont en cours de chargement.</p>
+                        <p className="text-xs text-slate-400 italic">
+                          {history.length === 0 ? "Aucune donnée. Lancez le workflow n8n !" : "Tout est parfait."}
+                        </p>
                     </div>
                 )}
             </div>
